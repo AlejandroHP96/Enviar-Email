@@ -13,6 +13,7 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -39,6 +40,8 @@ public class Controller implements Initializable {
     private StringProperty emailDProperty = new SimpleStringProperty();
     private StringProperty asuntoProperty = new SimpleStringProperty();
     private StringProperty textProperty = new SimpleStringProperty();
+
+    private Task<Void> hilo;
 
     @FXML
     private TextField asuntoTextField;
@@ -107,51 +110,64 @@ public class Controller implements Initializable {
     @FXML
     void onEnviarButton(ActionEvent event) throws EmailException {
 
-        try {
+        hilo = new Task<Void>() {
 
             Email email = new SimpleEmail();
 
-            email.setHostName(servidoProperty.get());
-            email.setSmtpPort(Integer.parseInt(puertoProperty.get()));
-            email.setAuthenticator(new DefaultAuthenticator(emailRProperty.get(), passwordProperty.get()));
-            email.setSSLOnConnect(SSLProperty.get());
-            email.setFrom(emailRProperty.get());
-            email.setSubject(asuntoProperty.get());
-            email.setMsg(textProperty.get());
-            email.addTo(emailDProperty.get());
-            email.send();
+            @Override
+            protected Void call() throws Exception {
+
+                email.setHostName(servidoProperty.get());
+                email.setSmtpPort(Integer.parseInt(puertoProperty.get()));
+                email.setAuthenticator(new DefaultAuthenticator(emailRProperty.get(), passwordProperty.get()));
+                email.setSSLOnConnect(SSLProperty.get());
+                email.setFrom(emailRProperty.get());
+                email.setSubject(asuntoProperty.get());
+                email.setMsg(textProperty.get());
+                email.addTo(emailDProperty.get());
+                email.send();
+
+                return null;
+            }
+
+        };
+
+        destinatarioTextField.clear();
+        asuntoTextField.clear();
+        mensajeTexto.clear();
+
+        hilo.setOnSucceeded(ev -> {
+            Alert alert = new Alert(AlertType.CONFIRMATION);
+            alert.setTitle("Mensaje Enviado");
+            alert.setHeaderText("Mensaje enviado con éxito a '" + emailDProperty.get() + "'");
+
+            Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
+
+            stage.getIcons().add(new Image(getClass().getResourceAsStream("/imagen/email-send-icon-32x32.png")));
 
             destinatarioTextField.clear();
             asuntoTextField.clear();
             mensajeTexto.clear();
 
-            Alert alert = new Alert(AlertType.CONFIRMATION);
-            alert.setTitle("Mensaje Enviado");
-            alert.setHeaderText("Mensaje enviado con éxito a '" + emailDProperty.get().toString() + "'");
-            
-            // Get the Stage.
-            Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
-            
-            // Add a custom icon.
-            stage.getIcons().add(new Image(getClass().getResourceAsStream("/imagen/email-send-icon-32x32.png")));
-            
             stage.showAndWait();
+        });
 
-        } catch (Exception e) {
+        hilo.setOnFailed(ev -> {
 
             Alert alert = new Alert(AlertType.ERROR);
             alert.setTitle("Error");
             alert.setHeaderText("No se pudo enviar el email");
             alert.setContentText("Invalid message supplied");
-            
+
             // Get the Stage.
             Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
-            
+
             // Add a custom icon.
             stage.getIcons().add(new Image(getClass().getResourceAsStream("/imagen/email-send-icon-32x32.png")));
-            
+
             stage.showAndWait();
-        }
+        });
+        new Thread(hilo).start();
 
     }
 
